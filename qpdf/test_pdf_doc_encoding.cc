@@ -1,44 +1,33 @@
-#include <qpdf/QUtil.hh>
 #include <qpdf/QPDFObjectHandle.hh>
+#include <qpdf/QUtil.hh>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
-#include <stdlib.h>
-#include <string.h>
 
-static char const* whoami = 0;
+static char const* whoami = nullptr;
 
-void usage()
+void
+usage()
 {
     std::cerr << "Usage: " << whoami << " infile" << std::endl;
     exit(2);
 }
 
-int main(int argc, char* argv[])
+int
+main(int argc, char* argv[])
 {
-    if ((whoami = strrchr(argv[0], '/')) == NULL)
-    {
-	whoami = argv[0];
-    }
-    else
-    {
-	++whoami;
-    }
-    // For libtool's sake....
-    if (strncmp(whoami, "lt-", 3) == 0)
-    {
-	whoami += 3;
+    if ((whoami = strrchr(argv[0], '/')) == nullptr) {
+        whoami = argv[0];
+    } else {
+        ++whoami;
     }
 
-    if (argc != 2)
-    {
+    if (argc != 2) {
         usage();
     }
     char const* infilename = argv[1];
-    std::list<std::string> lines =
-        QUtil::read_lines_from_file(infilename);
-    for (std::list<std::string>::iterator iter = lines.begin();
-         iter != lines.end(); ++iter)
-    {
-        QPDFObjectHandle str = QPDFObjectHandle::newString(*iter);
+    for (auto const& line: QUtil::read_lines_from_file(infilename)) {
+        QPDFObjectHandle str = QPDFObjectHandle::newString(line);
         std::cout << str.getUTF8Value() << std::endl;
     }
     return 0;
