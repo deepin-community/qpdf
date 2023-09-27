@@ -1,3 +1,125 @@
+qpdf (11.6.1-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Tue, 05 Sep 2023 14:39:58 -0400
+
+qpdf (11.6.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 03 Sep 2023 15:04:12 -0400
+
+qpdf (11.5.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Bump standards to 4.6.2. No changes required
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 09 Jul 2023 10:42:20 -0400
+
+qpdf (11.4.0-1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 21 May 2023 18:01:52 -0400
+
+qpdf (11.3.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 25 Feb 2023 17:24:01 -0500
+
+qpdf (11.2.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Fix homepage URL in debian/control (Closes: #1023027)
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 20 Nov 2022 17:52:45 -0500
+
+qpdf (11.1.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Fixed debian/watch file.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 01 Oct 2022 14:17:54 -0400
+
+qpdf (11.1.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Thu, 15 Sep 2022 06:18:31 -0400
+
+qpdf (11.0.0-3) unstable; urgency=medium
+
+  * Add CMAKE_BUILD_RPATH_USE_ORIGIN to rules for debian reproducible
+    build tests.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 11 Sep 2022 10:33:35 -0400
+
+qpdf (11.0.0-2) unstable; urgency=medium
+
+  * Upload to unstable
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 11 Sep 2022 10:16:46 -0400
+
+qpdf (11.0.0-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Standards version updated to 4.6.1; no changes needed.
+  * Release to experimental for soname bump.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 10 Sep 2022 16:19:11 -0400
+
+qpdf (10.6.3.0cmake1-3) experimental; urgency=medium
+
+  * Fix typo in previous fix.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 19 Mar 2022 19:46:37 -0400
+
+qpdf (10.6.3.0cmake1-2) experimental; urgency=medium
+
+  * Fix to test for atomic -- will rerelease upstream with fix soon.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 19 Mar 2022 18:24:22 -0400
+
+qpdf (10.6.3.0cmake1-1) experimental; urgency=medium
+
+  * Upstream pre-release after converting build to cmake
+  * Add autopkgtest to debian packages
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 19 Mar 2022 07:21:09 -0400
+
+qpdf (10.6.3-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 12 Mar 2022 08:47:23 -0500
+
+qpdf (10.6.2-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Wed, 16 Feb 2022 09:45:29 -0500
+
+qpdf (10.6.1-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Fri, 11 Feb 2022 10:40:35 -0500
+
+qpdf (10.6.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Wed, 09 Feb 2022 09:31:44 -0500
+
+qpdf (10.5.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Pre-built documentation is no longer included. See README-doc.txt.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Tue, 21 Dec 2021 09:57:04 -0500
+
 qpdf (10.4.0-1) unstable; urgency=medium
 
   * New upstream release.

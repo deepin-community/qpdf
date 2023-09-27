@@ -3,36 +3,33 @@
 #include <qpdf/QUtil.hh>
 
 QPDF_Integer::QPDF_Integer(long long val) :
+    QPDFValue(::ot_integer, "integer"),
     val(val)
 {
 }
 
-QPDF_Integer::~QPDF_Integer()
+std::shared_ptr<QPDFObject>
+QPDF_Integer::create(long long value)
 {
+    return do_create(new QPDF_Integer(value));
+}
+
+std::shared_ptr<QPDFObject>
+QPDF_Integer::copy(bool shallow)
+{
+    return create(val);
 }
 
 std::string
 QPDF_Integer::unparse()
 {
-    return QUtil::int_to_string(this->val);
+    return std::to_string(this->val);
 }
 
 JSON
-QPDF_Integer::getJSON()
+QPDF_Integer::getJSON(int json_version)
 {
     return JSON::makeInt(this->val);
-}
-
-QPDFObject::object_type_e
-QPDF_Integer::getTypeCode() const
-{
-    return QPDFObject::ot_integer;
-}
-
-char const*
-QPDF_Integer::getTypeName() const
-{
-    return "integer";
 }
 
 long long
