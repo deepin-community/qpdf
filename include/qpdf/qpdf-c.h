@@ -1,4 +1,4 @@
-/* Copyright (c) 2005-2023 Jay Berkenbilt
+/* Copyright (c) 2005-2024 Jay Berkenbilt
  *
  * This file is part of qpdf.
  *
@@ -21,21 +21,23 @@
 #define QPDF_C_H
 
 /*
- * This file defines a basic "C" API for qpdf.  It provides access to a subset of the QPDF library's
+ * This file defines a basic "C" API for qpdf. It provides access to a subset of the QPDF library's
  * capabilities to make them accessible to callers who can't handle calling C++ functions or working
- * with C++ classes.  This may be especially useful to Windows users who are accessing the qpdf DLL
+ * with C++ classes. This may be especially useful to Windows users who are accessing the qpdf DLL
  * directly or to other people programming in non-C/C++ languages that can call C code but not C++
- * code.
+ * code. Starting with qpdf 11.7, it is possible to write your own `extern "C"` functions that
+ * interoperate with the C API.
  *
  * There are several things to keep in mind when using the C API.
  *
  *     Error handling is tricky because the underlying C++ API uses exception handling. See "ERROR
  *     HANDLING" below for a detailed explanation.
  *
- *     The C API is not as rich as the C++ API.  For any operations that involve actually
- *     manipulating PDF objects, you must use the C++ API.  The C API is primarily useful for doing
- *     basic transformations on PDF files similar to what you might do with the qpdf command-line
- *     tool.
+ *     The C API is not as rich as the C++ API. For many operations, you must use the C++ API. The C
+ *     API is primarily useful for doing basic transformations on PDF files similar to what you
+ *     might do with the qpdf command-line tool. You can write your own `extern "C"` functions in
+ *     C++ that interoperate with the C API by using qpdf_c_get_qpdf and qpdf_c_wrap which were
+ *     introduced in qpdf 11.7.0.
  *
  *     These functions store their state in a qpdf_data object. Individual instances of qpdf_data
  *     are not thread-safe: although you may access different qpdf_data objects from different
@@ -608,7 +610,7 @@ extern "C" {
      * not destroy the object. All QPDFObjectHandle objects are deleted when they are no longer
      * referenced. Releasing an object handle simply invalidates it. For example, if you create an
      * object, add it to an existing dictionary or array, and then release its handle, the object is
-     * safely part of the dictionary or array. Similarly, any other object handle refering to the
+     * safely part of the dictionary or array. Similarly, any other object handle referring to the
      * object remains valid. Explicitly releasing an object handle is essentially the same as
      * letting a QPDFObjectHandle go out of scope in the C++ API.
      *
@@ -826,7 +828,7 @@ extern "C" {
     qpdf_oh qpdf_oh_new_string(qpdf_data qpdf, char const* str);
     QPDF_DLL
     qpdf_oh qpdf_oh_new_unicode_string(qpdf_data qpdf, char const* utf8_str);
-    /* Use qpdf_oh_new_binary_string for creating a string that may contain atrbitary binary data
+    /* Use qpdf_oh_new_binary_string for creating a string that may contain arbitrary binary data
      * including embedded null characters.
      */
     QPDF_DLL
@@ -990,6 +992,23 @@ extern "C" {
     QPDF_ERROR_CODE qpdf_remove_page(qpdf_data qpdf, qpdf_oh page);
 #ifdef __cplusplus
 }
+
+// These C++ functions make it easier to write C++ code that interoperates with the C API.
+// See examples/extend-c-api.
+
+# include <functional>
+# include <memory>
+
+# include <qpdf/QPDF.hh>
+
+// Retrieve the real QPDF object attached to this qpdf_data.
+QPDF_DLL
+std::shared_ptr<QPDF> qpdf_c_get_qpdf(qpdf_data qpdf);
+
+// Wrap a C++ function that may throw an exception to translate the exception for retrieval using
+// the normal QPDF C API methods.
+QPDF_DLL
+QPDF_ERROR_CODE qpdf_c_wrap(qpdf_data qpdf, std::function<void()> fn);
 #endif
 
 #endif /* QPDF_C_H */

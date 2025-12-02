@@ -23,6 +23,7 @@ static char const* json_key_choices[] = {"acroform", "attachments", "encrypt", "
 static char const* json_output_choices[] = {"2", "latest", 0};
 static char const* json_stream_data_choices[] = {"none", "inline", "file", 0};
 static char const* json_version_choices[] = {"1", "2", "latest", 0};
+static char const* enc_bits_choices[] = {"40", "128", "256", 0};
 static char const* print128_choices[] = {"full", "low", "none", 0};
 static char const* modify128_choices[] = {"all", "annotate", "form", "assembly", "none", 0};
 
@@ -72,6 +73,7 @@ this->ap.addBare("replace-input", b(&ArgParser::argReplaceInput));
 this->ap.addBare("report-memory-usage", [this](){c_main->reportMemoryUsage();});
 this->ap.addBare("requires-password", [this](){c_main->requiresPassword();});
 this->ap.addBare("remove-restrictions", [this](){c_main->removeRestrictions();});
+this->ap.addBare("set-page-labels", b(&ArgParser::argSetPageLabels));
 this->ap.addBare("show-encryption", [this](){c_main->showEncryption();});
 this->ap.addBare("show-encryption-key", [this](){c_main->showEncryptionKey();});
 this->ap.addBare("show-linearization", [this](){c_main->showLinearization();});
@@ -125,9 +127,14 @@ this->ap.addChoices("json", [this](std::string const& x){c_main->json(x);}, fals
 this->ap.addChoices("json-output", [this](std::string const& x){c_main->jsonOutput(x);}, false, json_output_choices);
 this->ap.registerOptionTable("pages", b(&ArgParser::argEndPages));
 this->ap.addPositional(p(&ArgParser::argPagesPositional));
-this->ap.addRequiredParameter("password", p(&ArgParser::argPagesPassword), "password");
+this->ap.addRequiredParameter("file", [this](std::string const& x){c_pages->file(x);}, "file");
+this->ap.addRequiredParameter("range", [this](std::string const& x){c_pages->range(x);}, "page-range");
+this->ap.addRequiredParameter("password", [this](std::string const& x){c_pages->password(x);}, "password");
 this->ap.registerOptionTable("encryption", b(&ArgParser::argEndEncryption));
 this->ap.addPositional(p(&ArgParser::argEncPositional));
+this->ap.addRequiredParameter("user-password", p(&ArgParser::argEncUserPassword), "user_password");
+this->ap.addRequiredParameter("owner-password", p(&ArgParser::argEncOwnerPassword), "owner_password");
+this->ap.addChoices("bits", p(&ArgParser::argEncBits), true, enc_bits_choices);
 this->ap.registerOptionTable("40-bit encryption", b(&ArgParser::argEnd40BitEncryption));
 this->ap.addChoices("extract", [this](std::string const& x){c_enc->extract(x);}, true, yn_choices);
 this->ap.addChoices("annotate", [this](std::string const& x){c_enc->annotate(x);}, true, yn_choices);
@@ -159,6 +166,7 @@ this->ap.addChoices("modify-other", [this](std::string const& x){c_enc->modifyOt
 this->ap.addChoices("modify", [this](std::string const& x){c_enc->modify(x);}, true, modify128_choices);
 this->ap.registerOptionTable("underlay/overlay", b(&ArgParser::argEndUnderlayOverlay));
 this->ap.addPositional(p(&ArgParser::argUOPositional));
+this->ap.addRequiredParameter("file", [this](std::string const& x){c_uo->file(x);}, "file");
 this->ap.addRequiredParameter("to", [this](std::string const& x){c_uo->to(x);}, "page-range");
 this->ap.addRequiredParameter("from", [this](std::string const& x){c_uo->from(x);}, "page-range");
 this->ap.addRequiredParameter("repeat", [this](std::string const& x){c_uo->repeat(x);}, "page-range");
@@ -176,3 +184,5 @@ this->ap.registerOptionTable("copy attachment", b(&ArgParser::argEndCopyAttachme
 this->ap.addPositional(p(&ArgParser::argCopyAttPositional));
 this->ap.addRequiredParameter("prefix", [this](std::string const& x){c_copy_att->prefix(x);}, "prefix");
 this->ap.addRequiredParameter("password", [this](std::string const& x){c_copy_att->password(x);}, "password");
+this->ap.registerOptionTable("set page labels", b(&ArgParser::argEndSetPageLabels));
+this->ap.addPositional(p(&ArgParser::argPageLabelsPositional));

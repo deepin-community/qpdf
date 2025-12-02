@@ -3,9 +3,11 @@ cmake_minimum_required(VERSION 3.16)
 
 # make_dist expects the version line to be on a line by itself after
 # the project line. When updating the version, check make_dist for all
-# the places it has to be updated.
+# the places it has to be updated. The doc configuration and CI build
+# also find the version number here. generate_auto_job also reads the
+# version from here.
 project(qpdf
-  VERSION 11.6.1
+  VERSION 11.9.0
   LANGUAGES C CXX)
 
 # Enable correct rpath handling for MacOSX
@@ -70,6 +72,7 @@ CMAKE_DEPENDENT_OPTION(
   BUILD_DOC_DIST "Create distribution of manual" ON
   "BUILD_DOC_PDF;BUILD_DOC_HTML" OFF)
 
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 option(BUILD_SHARED_LIBS "Build qpdf shared libraries" ON)
 option(BUILD_STATIC_LIBS "Build qpdf static libraries" ON)
 option(QTEST_COLOR "Whether qtest's output should be in color" ON)
@@ -105,6 +108,7 @@ option(INSTALL_CMAKE_PACKAGE "Install cmake package files" ON)
 option(INSTALL_EXAMPLES "Install example files" ON)
 
 option(FUTURE "Include ABI-breaking changes CONSIDERED for the next major release" OFF)
+option(CXX_NEXT "Build with next C++ standard version" OFF)
 
 # *** END OPTIONS ***
 
@@ -147,8 +151,14 @@ endif()
 # increment SOVERSION every time we increment the project major
 # version. This works because qpdf uses semantic versioning. qpdf 10.x
 # was libqpdf28, so start from there.
-math(EXPR qpdf_SOVERSION "${PROJECT_VERSION_MAJOR} + 18")
-set(qpdf_LIBVERSION ${qpdf_SOVERSION}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
+
+if(FUTURE)
+  math(EXPR qpdf_SOVERSION 0)
+  set(qpdf_LIBVERSION 0)
+else()
+  math(EXPR qpdf_SOVERSION "${PROJECT_VERSION_MAJOR} + 18")
+  set(qpdf_LIBVERSION ${qpdf_SOVERSION}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
+endif()
 
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "
@@ -159,7 +169,11 @@ Please build with cmake in a subdirectory, e.g.
 Please remove CMakeCache.txt and the CMakeFiles directories.")
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+if(CXX_NEXT)
+  set(CMAKE_CXX_STANDARD 20)
+else()
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
@@ -283,6 +297,11 @@ set(CPACK_RESOURCE_FILE_LICENSE "${qpdf_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://qpdf.sourceforge.io/")
 set(CPACK_NSIS_MUI_ICON "${qpdf_SOURCE_DIR}/logo/qpdf.ico")
 
+if(ENABLE_COVERAGE)
+  add_compile_options(--coverage -O0)
+  add_link_options(--coverage)
+endif()
+
 include(CPack)
 
 # Install components -- documented in _installation in
@@ -300,9 +319,12 @@ endif()
 set(auto_job_inputs
   # Keep in sync with SOURCES in generate_auto_job
   generate_auto_job
+  CMakeLists.txt
   manual/_ext/qpdf.py
   job.yml
-  manual/cli.rst)
+  manual/cli.rst
+  manual/qpdf.1.in
+)
 
 set(auto_job_outputs
   # Keep in sync with DESTS in generate_auto_job
@@ -311,7 +333,9 @@ set(auto_job_outputs
   libqpdf/qpdf/auto_job_help.hh
   libqpdf/qpdf/auto_job_schema.hh
   libqpdf/qpdf/auto_job_json_decl.hh
-  libqpdf/qpdf/auto_job_json_init.hh)
+  libqpdf/qpdf/auto_job_json_init.hh
+  manual/qpdf.1
+)
 
 if(GENERATE_AUTO_JOB)
   add_custom_command(
@@ -329,6 +353,7 @@ add_test(
 # add_subdirectory order affects test order
 add_subdirectory(include)
 add_subdirectory(libqpdf)
+add_subdirectory(compare-for-test)
 add_subdirectory(qpdf)
 add_subdirectory(libtests)
 add_subdirectory(examples)
