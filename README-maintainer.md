@@ -7,6 +7,7 @@
 * [CHECKING DOCS ON readthedocs](#checking-docs-on-readthedocs)
 * [GOOGLE OSS-FUZZ](#google-oss-fuzz)
 * [CODING RULES](#coding-rules)
+* [ZLIB COMPATIBILITY](#zlib-compatibility)
 * [HOW TO ADD A COMMAND-LINE ARGUMENT](#how-to-add-a-command-line-argument)
 * [RELEASE PREPARATION](#release-preparation)
 * [CREATING A RELEASE](#creating-a-release)
@@ -24,19 +25,19 @@
 
 **Remember to check pull requests as well as issues in github.**
 
+Include `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` with cmake if using emacs lsp mode.
+
 Default:
 
 ```
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-   -DMAINTAINER_MODE=1 -DBUILD_STATIC_LIBS=0 \
+cmake -DMAINTAINER_MODE=ON -DBUILD_STATIC_LIBS=OFF \
    -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 ```
 
 Debugging:
 
 ```
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-   -DMAINTAINER_MODE=1 -DBUILD_SHARED_LIBS=0 \
+cmake -DMAINTAINER_MODE=ON -DBUILD_SHARED_LIBS=OFF \
    -DCMAKE_BUILD_TYPE=Debug ..
 ```
 
@@ -44,12 +45,25 @@ Profiling:
 
 ```
 CFLAGS=-pg LDFLAGS=-pg \
-   cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-   -DMAINTAINER_MODE=1 -DBUILD_SHARED_LIBS=0 \
+   cmake -DMAINTAINER_MODE=ON -DBUILD_SHARED_LIBS=OFF \
    -DCMAKE_BUILD_TYPE=Debug ..
 ```
 
 Then run `gprof gmon.out`. Note that gmon.out is not cumulative.
+
+Coverage:
+
+```
+cmake -DMAINTAINER_MODE=ON -DBUILD_SHARED_LIBS=OFF \
+   -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON..
+```
+
+Then, from the build directory, run the test suite (`ctest --verbose`) followed by
+```
+gcovr -r .. --html --html-details -o coverage-report.html
+```
+
+Note that, in early 2024, branch coverage information is not very accurate with C++.
 
 Memory checks:
 
@@ -58,8 +72,7 @@ CFLAGS="-fsanitize=address -fsanitize=undefined" \
    CXXFLAGS="-fsanitize=address -fsanitize=undefined" \
    LDFLAGS="-fsanitize=address -fsanitize=undefined" \
    CC=clang CXX=clang++ \
-   cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-   -DMAINTAINER_MODE=1 -DBUILD_SHARED_LIBS=0 \
+   cmake -DMAINTAINER_MODE=ON -DBUILD_SHARED_LIBS=OFF \
    -DCMAKE_BUILD_TYPE=Debug ..
 ```
 
@@ -272,6 +285,102 @@ Building docs from pull requests is also enabled.
 * Avoid attaching too much metadata to objects and object handles
   since those have to get copied around a lot.
 
+## ZLIB COMPATIBILITY
+
+The qpdf test suite is designed to be independent of the output of any
+particular version of zlib. There are several strategies to make this
+work:
+
+* `build-scripts/test-alt-zlib` runs in CI and runs the test suite
+  with a non-default zlib. Please refer to that code for an example of
+  how to do this in case you want to test locally.
+
+* The test suite is full of cases that compare output PDF files with
+  expected PDF files in the test suite. If the file contains data that
+  was compressed by QPDFWriter, then the output file will depend on
+  the behavior of zlib. As such, using a simple comparison won't work.
+  There are several strategies used by the test suite.
+
+  * A new program called `qpdf-test-compare`, in most cases, is a drop
+    in replacement for a simple file comparison. This code make sure
+    the two files have exactly the same number of objects with the
+    same object and generation numbers, and that corresponding objects
+    are identical with the following allowances (consult its source
+    code for all the details details):
+    * The `/Length` key is not compared in stream dictionaries.
+    * The second element of `/ID` is not compared.
+    * If the first and second element of `/ID` are the same, then the
+      first element if `/ID` is also not compared.
+    * If a stream is compressed with `/FlateDecode`, the
+      _uncompressed_ stream data is compared. Otherwise, the raw
+      stream data is compared.
+    * Generated fields in the `/Encrypt` dictionary are not compared,
+      though password-protected files must have the same password.
+    * Differences in the contents of `/XRef` streams are ignored.
+
+    To use this, run `qpdf-test-compare actual.pdf expected.pdf`, and
+    expect the output to match `expected.pdf`. For example, if a test
+    used to be written like this;
+    ```perl
+    $td->runtest("check output",
+                 {$td->FILE => "a.pdf"},
+                 {$td->FILE => "out.pdf"});
+    ```
+    then write it like this instead:
+    ```perl
+    $td->runtest("check output",
+                 {$td->COMMAND => "qpdf-test-compare a.pdf out.pdf"},
+                 {$td->FILE => "out.pdf", $td->EXIT_STATUS => 0});
+    ```
+    You can look at `compare-for-test/qtest/compare.test` for
+    additional examples.
+
+    Here's what's going on:
+    * If the files "match" according to the rules of
+      `qpdf-test-compare`, the output of the program is the expected
+      file.
+    * If the files do not match, the output is the actual file. The
+      reason is that, if a change is made that results in an expected
+      change to the expected file, the output of the comparison can be
+      used to replace the expected file (as long as it is definitely
+      known to be correct—no shortcuts here!). That way, it doesn't
+      matter which zlib you use to generate test files.
+    * As a special debugging tool, you can set the `QPDF_COMPARE_WHY`
+      environment variable to any value. In this case, if the files
+      don't match, the output is a description of the first thing in
+      the file that doesn't match. This is mostly useful for debugging
+      `qpdf-test-compare` itself, but it can also be helpful as a
+      sanity check that the differences are expected. If you are
+      trying to find out the _real_ differences, a suggestion is to
+      convert both files to qdf and compare them lexically.
+
+  * There are some cases where `qpdf-test-compare` can't be used. For
+    example, if you need to actually test one of the things that
+    `qpdf-test-compare` ignores, you'll need some other mechanism.
+    There are tests for deterministic ID creation and xref streams
+    that have to implement other mechanisms. Also, linearization hint
+    streams and the linearization dictionary in a linearized file
+    contain file offsets. Rather than ignoring those, it can be
+    helpful to create linearized files using `--compress-streams=n`.
+    In that case, `QPDFWriter` won't compress any data, so the PDF
+    will be independent of the output of any particular zlib
+    implementation.
+
+You can find many examples of how tests were rewritten by looking at
+the commits preceding the one that added this section of this README
+file.
+
+Note about `/ID`: many test cases use `--static-id` to have a
+predictable `/ID` for testing. Many other test cases use
+`--deterministic-id`. While `--static-id` is unaffected by file
+contents, `--deterministic-id` is based on file contents and so is
+dependent on zlib output if there is any newly compressed data. By
+using `qpdf-test-compare`, it's actually not necessary to use either
+`--static-id` or `--deterministic-id`. It may still be necessary to
+use `--static-aes-iv` if comparing encrypted files, but since
+`qpdf-test-compare` ignores `/Perms`, a wider range of encrypted files
+can be compared using `qpdf-test-compare`.
+
 ## HOW TO ADD A COMMAND-LINE ARGUMENT
 
 Quick reminder:
@@ -280,7 +389,8 @@ Quick reminder:
   argument
 * Add an entry to the bottom half of job.yml for the job JSON field
 * Add documentation for the new option to cli.rst
-* Implement the QPDFJob::Config method in QPDFJob_config.cc.
+* Implement the QPDFJob::Config method in QPDFJob_config.cc
+* Adding new options tables is harder -- see below
 
 QPDFJob is documented in three places:
 
@@ -308,6 +418,12 @@ the appropriate Config method, which you then have to implement. If
 you need a manual handler, you have to declare the option as manual in
 job.yml and implement the handler yourself, though the automatically
 generated code will declare it for you.
+
+Adding a new option table is a bit harder and is not well-documented.
+For a simple example, look at the code that added the
+--set-page-labels table. That change was divided into two commits (one
+for the manual changes, and one for the generated changes) to make it
+easier to use as an example.
 
 The build will fail until the new option is documented in
 manual/cli.rst. To do that, create documentation for the option by
@@ -342,7 +458,7 @@ When done, the following should happen:
   * debian package -- search for copyright.*berkenbilt in debian/copyright
   * qtest-driver, TestDriver.pm in qtest source
 
-  Copyright last updated: 2023.
+  Copyright last updated: 2024.
 
 * Take a look at "External Libraries" in TODO to see if we need to
   make any changes. There is still some automation work left to do, so
@@ -402,7 +518,6 @@ When done, the following should happen:
   * Make sure version numbers are consistent in the following locations:
     * CMakeLists.txt
     * include/qpdf/DLL.h
-    * manual/conf.py
 
   `make_dist` verifies this consistency, and CI fails if they are
   inconsistent.
@@ -434,22 +549,6 @@ When done, the following should happen:
   * /tmp/check-abi/old contains old sizes and library
   * /tmp/check-abi/new contains new sizes and library
   * run check_abi manually to compare
-
-* Run package tests:
-
-  (Note: can't use DESTDIR because pkg-config won't know about it.)
-
-```
-\rm -rf /tmp/inst build.tmp
-cmake -S . -B build.tmp \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/tmp/inst
-cmake --build build.tmp -j$(nproc)
-cmake --install build.tmp
-env PKG_CONFIG_PATH=/tmp/inst/lib/pkgconfig \
-    LD_LIBRARY_PATH=/tmp/inst/lib \
-    CMAKE_PREFIX_PATH=/tmp/inst \
-   ./pkg-test/run-all
-```
 
 ## CREATING A RELEASE
 
@@ -534,7 +633,7 @@ done
 If needed, go onto github and make any manual updates such as
 indicating a pre-release, adding release notes, etc.
 
-Template for release notes:
+Template for release notes.
 
 ```
 This is qpdf version x.y.z. (Brief description)
@@ -557,7 +656,8 @@ rsync -vrlcO ./ jay_berkenbilt,qpdf@frs.sourceforge.net:/home/frs/project/q/qp/q
 * On sourceforge, make the source package the default for all but
   Windows, and make the 64-bit msvc build the default for Windows.
 
-* Publish a news item manually on sourceforge.
+* Publish a news item manually on sourceforge using the release notes text. Remove the relative link
+  to README-what-to-download.md (just reference the file by name)
 
 * Upload the debian package and Ubuntu ppa backports.
 
@@ -603,8 +703,7 @@ export QPDF_BUILD_LIBDIR=$QPDF_SOURCE_TREE/build/libqpdf
 export LD_LIBRARY_PATH=$QPDF_BUILD_LIBDIR
 cd qpdf
 mkdir build
-cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-   -DMAINTAINER_MODE=1 -DBUILD_STATIC_LIBS=0 \
+cmake -B build -DMAINTAINER_MODE=ON -DBUILD_STATIC_LIBS=OFF \
    -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cat <<'EOF'
 #!/bin/bash

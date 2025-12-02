@@ -1,4 +1,4 @@
-// Copyright (c) 2005-2023 Jay Berkenbilt
+// Copyright (c) 2005-2024 Jay Berkenbilt
 //
 // This file is part of qpdf.
 //
@@ -1177,14 +1177,14 @@ class QPDFObjectHandle
     //     mappings are not reversible. There is no way to tell the difference between a string that
     //     looks like a name or indirect object from an actual name or indirect object.
     //   * JSON v2:
-    //     * Unicode strings and strings encoded with PDF Doc encoding that can be bidrectionally
-    //       mapped two Unicode (which is all strings without undefined characters) are represented
+    //     * Unicode strings and strings encoded with PDF Doc encoding that can be bidirectionally
+    //       mapped to Unicode (which is all strings without undefined characters) are represented
     //       as "u:" followed by the UTF-8 encoded string. Example:
     //       "u:potato".
     //     * All other strings are represented as "b:" followed by a hexadecimal encoding of the
     //       string. Example: "b:0102cacb"
     // * Streams
-    //   * JSON v1: Only the stream's dictionary is encoded. There is no way tell a stream from a
+    //   * JSON v1: Only the stream's dictionary is encoded. There is no way to tell a stream from a
     //     dictionary other than context.
     //   * JSON v2: A stream is encoded as {"dict": {...}} with the value being the encoding of the
     //     stream's dictionary. Since "dict" does not otherwise represent anything, this is
@@ -1196,6 +1196,13 @@ class QPDFObjectHandle
     // recursive.
     QPDF_DLL
     JSON getJSON(int json_version, bool dereference_indirect = false);
+
+    // Write the object encoded as JSON to a pipeline. This is equivalent to, but more efficient
+    // than, calling getJSON(json_version, dereference_indirect).write(p, depth). See the
+    // documentation for getJSON and JSON::write for further detail.
+    QPDF_DLL
+    void
+    writeJSON(int json_version, Pipeline* p, bool dereference_indirect = false, size_t depth = 0);
 
     // Deprecated version uses v1 for backward compatibility.
     // ABI: remove for qpdf 12
@@ -1352,6 +1359,8 @@ class QPDFObjectHandle
     {
         return obj.get();
     }
+
+    void writeJSON(int json_version, JSON::Writer& p, bool dereference_indirect = false);
 
   private:
     QPDF_Array* asArray();

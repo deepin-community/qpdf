@@ -33,7 +33,181 @@ Planned changes for future 12.x (subject to change):
     buffer1.copy();`` or ``Buffer buffer2{buffer1.copy()};`` to make
     it explicit that copying is intended.
 
+  - ``QIntC.hh`` contains the type ``substract``, which will be fixed
+    to ``subtract``. (Not enabled with ``FUTURE`` option.)
+
 .. x.y.z: not yet released
+
+11.9.0: February 24, 2024
+  - CLI Enhancements
+
+    - Add new command-line arguments :qpdf:ref:`--file` and
+      :qpdf:ref:`--range` which can be used within :qpdf:ref:`--pages`
+      in place of positional arguments. Allow :qpdf:ref:`--file` to be
+      used inside of :qpdf:ref:`--overlay` and :qpdf:ref:`--underlay`
+      as well. These new options can be freely intermixed with
+      positional arguments.
+
+    - Allow :qpdf:ref:`--overlay` and :qpdf:ref:`--underlay` to be
+      repeated. They may appear multiple times on the command-line and
+      will be stacked in the order in which they appear. In QPDFJob
+      JSON (see :ref:`qpdf-job`), the `overlay` and `underlay` keys
+      may contain arrays. For compatibility, they may also contain a
+      single dictionary.
+
+  - Library Enhancements
+
+    - Add ``file()``, ``range()``, and ``password()`` to
+      ``QPDFJob::PagesConfig`` as an alternative to ``pageSpec``.
+
+    - Add ``QPDFObjectHandle::writeJSON`` to write the JSON
+      representation of the object directly to a pipeline. This is
+      much faster than calling ``QPDFObjectHandle::getJSON``.
+
+  - Other Enhancements
+
+    - There have been non-user-visible improvements to the reliability
+      of the JSON parser. The JSON parser has been added to fuzz
+      testing with OSS-Fuzz.
+
+11.8.0: January 8, 2024
+  - Bug fixes:
+
+    - When flattening annotations, preserve hyperlinks and other
+      annotations that inherently have no appearance information.
+
+  - CLI Enhancements
+
+    - Introduce ``x`` in the numeric range syntax to allow exclusion
+      of pages within a page range. See :ref:`page-ranges` for
+      details.
+
+    - Support comma-separated numeric values with
+      :qpdf:ref:`--collate` to select different numbers of pages from
+      different groups.
+
+    - Add :qpdf:ref:`--set-page-labels` option to completely override
+      page labels in the output.
+
+  - Library Enhancements
+
+    - Add API to support :qpdf:ref:`--set-page-labels`:
+
+      - ``QPDFJob::Config::setPageLabels``
+
+      - ``pdf_page_label_e`` enumerated type
+
+      - ``QPDFPageLabelDocumentHelper::pageLabelDict``
+
+    - Improve file recovery logic to better handle files with
+      cross-reference streams. This should enable qpdf to recover some
+      files that it would previously have reported "unable to find
+      trailer dictionary."
+
+11.7.0: December 24, 2023
+  - Bug fixes:
+
+    - With ``--compress-streams=n``, qpdf was still compressing cross
+      reference streams, linearization hint streams, and object
+      streams. This has been fixed.
+
+    - Fix to QPDF JSON: the syntax ``"n:/pdf-syntax"`` is now accepted
+      as an alternative way to represent names. This can be used for
+      any name (e.g. ``"n:/text#2fplain"``), but it is necessary when
+      the name contains binary characters. For example, ``/one#a0two``
+      must be represented as ``"n:/one#a0two"`` since the single byte
+      ``a0`` is not valid in JSON.
+
+    - QPDF JSON will convert floating numbers that appear in the JSON
+      in scientific notation to fixed-point notation since PDF doesn't
+      accept scientific notation.
+
+    - When setting a check box value, allow any value other than
+      ``/Off`` to mean checked. This is permitted by the spec.
+      Previously, any value other than ``/Yes`` or ``/Off`` was
+      rejected.
+
+  - CLI Enhancements:
+
+    - Allow the syntax ``--encrypt --user-password=user-password
+      --owner-password=owner-password --bits={40,128,256}`` when
+      encrypting PDF files. This is an alternative to the syntax
+      ``--encrypt user-password owner-password {40,128,256}``, which
+      will continue to be supported. The new syntax works better with
+      shell completion and allows creation of passwords that start
+      with ``-``.
+
+    - :qpdf:ref:`--remove-restrictions` flag now also disables
+      digital signatures in the file.
+
+  - Build Enhancements:
+
+    - The qpdf test suite now passes when qpdf is linked with an
+      alternative ``zlib`` implementation. There are no dependencies
+      anywhere in the qpdf test suite on any particular ``zlib``
+      output. Consult the ``ZLIB COMPATIBILITY`` section of
+      ``README-maintainer.md`` for a detailed explanation of how to
+      maintain this.
+
+    - The official Windows installers now offers to modify ``PATH``
+      when installing qpdf.
+
+  - Package Enhancements:
+
+    - A UNIX man page is now automatically generated from the
+      documentation. It contains the same text as ``qpdf --help=all``.
+
+  - Library Enhancements:
+
+    - Add C++ functions ``qpdf_c_wrap`` and ``qpdf_c_get_qpdf`` to the
+      C API to enable custom C++ code to interoperate more easily with
+      the the C API. See ``examples/extend-c-api``.
+
+    - Add methods to ``Buffer`` to work more easily and efficiently
+      with ``std::string``.
+
+    - Add ``QPDFAcroFormDocumentHelper::disableDigitalSignatures``,
+      which disables any digital signature fields, leaving their
+      visual representations intact.
+
+11.6.4: December 10, 2023
+  - Bug fixes:
+
+    - When running ``cmake --install --component dev``, install cmake
+      files, which were previously omitted from the ``dev`` component
+
+    - Fix the Linux binary build to use older libraries so it
+      continues to work in AWS Lambda and other older execution
+      environments.
+
+11.6.3: October 15, 2023
+  - Bug fixes:
+
+    - Fix a bug in which qpdf could potentially discard a character in
+      a binary string if that character was preceded by an octal
+      escaped string with fewer than three digits. This bug was
+      introduced in the 11.0.0 release. The bug would not apply to
+      content streams with default settings.
+
+    - The linearization specification precludes linearized files that
+      require offsets past the 4 GB mark. A bug in qpdf was preventing
+      it from working when offsets had to pass the 2 GB mark. This has
+      been corrected.
+
+11.6.2: October 7, 2023
+  - Bug fixes:
+
+    - Fix a very old bug that could cause qpdf to call an internal
+      ``finish`` function twice on certain stream decoding errors.
+      With certain incorrect input files, this could cause qpdf to
+      call gnutls or openssl 1 in a way that could cause them to
+      crash.
+
+  - Development changes:
+
+    - Control some ``.idea`` files for JetBrains CLion. We will be
+      iterating on making it easier to work with qpdf in CLion in
+      coming releases.
 
 11.6.1: September 5, 2023
   - Bug fixes:

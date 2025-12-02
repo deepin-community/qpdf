@@ -2,13 +2,10 @@
 
 #include <qpdf/QPDF.hh>
 
-#include <algorithm>
 #include <atomic>
-#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <map>
-#include <memory.h>
 #include <regex>
 #include <sstream>
 #include <vector>
@@ -17,8 +14,6 @@
 #include <qpdf/FileInputSource.hh>
 #include <qpdf/OffsetInputSource.hh>
 #include <qpdf/Pipeline.hh>
-#include <qpdf/Pl_Discard.hh>
-#include <qpdf/Pl_OStream.hh>
 #include <qpdf/QPDFExc.hh>
 #include <qpdf/QPDFLogger.hh>
 #include <qpdf/QPDFObject_private.hh>
@@ -580,6 +575,39 @@ QPDF::reconstruct_xref(QPDFExc& e)
     m->deleted_objects.clear();
 
     if (!m->trailer.isInitialized()) {
+        qpdf_offset_t max_offset{0};
+        // If there are any xref streams, take the last one to appear.
+        for (auto const& iter: m->xref_table) {
+            auto entry = iter.second;
+            if (entry.getType() != 1) {
+                continue;
+            }
+            auto oh = getObjectByObjGen(iter.first);
+            try {
+                if (!oh.isStreamOfType("/XRef")) {
+                    continue;
+                }
+            } catch (std::exception&) {
+                continue;
+            }
+            auto offset = entry.getOffset();
+            if (offset > max_offset) {
+                max_offset = offset;
+                setTrailer(oh.getDict());
+            }
+        }
+        if (max_offset > 0) {
+            try {
+                read_xref(max_offset);
+            } catch (std::exception&) {
+                throw damagedPDF(
+                    "", 0, "error decoding candidate xref stream while recovering damaged file");
+            }
+            QTC::TC("qpdf", "QPDF recover xref stream");
+        }
+    }
+
+    if (!m->trailer.isInitialized()) {
         // We could check the last encountered object to see if it was an xref stream.  If so, we
         // could try to get the trailer from there.  This may make it possible to recover files with
         // bad startxref pointers even when they have object streams.
@@ -678,6 +706,16 @@ QPDF::read_xref(qpdf_offset_t xref_offset)
     // We no longer need the deleted_objects table, so go ahead and clear it out to make sure we
     // never depend on its being set.
     m->deleted_objects.clear();
+
+    // Make sure we keep only the highest generation for any object.
+    QPDFObjGen last_og{-1, 0};
+    for (auto const& item: m->xref_table) {
+        auto id = item.first.getObj();
+        if (id == last_og.getObj() && id > 0) {
+            removeObject(last_og);
+        }
+        last_og = item.first;
+    }
 }
 
 bool
@@ -1158,6 +1196,10 @@ QPDF::insertFreeXrefEntry(QPDFObjGen og)
 void
 QPDF::insertReconstructedXrefEntry(int obj, qpdf_offset_t f1, int f2)
 {
+    if (!(obj > 0 && 0 <= f2 && f2 < 65535)) {
+        QTC::TC("qpdf", "QPDF xref overwrite invalid objgen");
+        return;
+    }
     QPDFObjGen og(obj, f2);
     if (!m->deleted_objects.count(obj)) {
         // deleted_objects stores the uncompressed objects removed from the xref table at the start
@@ -1951,6 +1993,18 @@ QPDF::replaceObject(QPDFObjGen const& og, QPDFObjectHandle oh)
 }
 
 void
+QPDF::removeObject(QPDFObjGen og)
+{
+    m->xref_table.erase(og);
+    if (auto cached = m->obj_cache.find(og); cached != m->obj_cache.end()) {
+        // Take care of any object handles that may be floating around.
+        cached->second.object->assign(QPDF_Null::create());
+        cached->second.object->setObjGen(nullptr, QPDFObjGen());
+        m->obj_cache.erase(cached);
+    }
+}
+
+void
 QPDF::replaceReserved(QPDFObjectHandle reserved, QPDFObjectHandle replacement)
 {
     QTC::TC("qpdf", "QPDF replaceReserved");
@@ -2348,19 +2402,38 @@ QPDF::getCompressibleObjGens()
     QPDFObjectHandle encryption_dict = m->trailer.getKey("/Encrypt");
     QPDFObjGen encryption_dict_og = encryption_dict.getObjGen();
 
-    QPDFObjGen::set visited;
-    std::list<QPDFObjectHandle> queue;
-    queue.push_front(m->trailer);
+    const size_t max_obj = getObjectCount();
+    std::vector<bool> visited(max_obj, false);
+    std::vector<QPDFObjectHandle> queue;
+    queue.reserve(512);
+    queue.push_back(m->trailer);
     std::vector<QPDFObjGen> result;
     while (!queue.empty()) {
-        QPDFObjectHandle obj = queue.front();
-        queue.pop_front();
-        if (obj.isIndirect()) {
+        auto obj = queue.back();
+        queue.pop_back();
+        if (obj.getObjectID() > 0) {
             QPDFObjGen og = obj.getObjGen();
-            if (!visited.add(og)) {
+            const size_t id = toS(og.getObj() - 1);
+            if (id >= max_obj) {
+                throw std::logic_error(
+                    "unexpected object id encountered in getCompressibleObjGens");
+            }
+            if (visited[id]) {
                 QTC::TC("qpdf", "QPDF loop detected traversing objects");
                 continue;
             }
+
+            // Check whether this is the current object. If not, remove it (which changes it into a
+            // direct null and therefore stops us from revisiting it) and move on to the next object
+            // in the queue.
+            auto upper = m->obj_cache.upper_bound(og);
+            if (upper != m->obj_cache.end() && upper->first.getObj() == og.getObj()) {
+                removeObject(og);
+                continue;
+            }
+
+            visited[id] = true;
+
             if (og == encryption_dict_og) {
                 QTC::TC("qpdf", "QPDF exclude encryption dictionary");
             } else if (!(obj.isStream() ||
@@ -2381,18 +2454,18 @@ QPDF::getCompressibleObjGens()
                         QTC::TC("qpdf", "QPDF exclude indirect length");
                     }
                 } else {
-                    queue.push_front(value);
+                    queue.push_back(value);
                 }
             }
         } else if (obj.isDictionary()) {
             std::set<std::string> keys = obj.getKeys();
             for (auto iter = keys.rbegin(); iter != keys.rend(); ++iter) {
-                queue.push_front(obj.getKey(*iter));
+                queue.push_back(obj.getKey(*iter));
             }
         } else if (obj.isArray()) {
             int n = obj.getArrayNItems();
             for (int i = 1; i <= n; ++i) {
-                queue.push_front(obj.getArrayItem(n - i));
+                queue.push_back(obj.getArrayItem(n - i));
             }
         }
     }
@@ -2413,27 +2486,22 @@ QPDF::pipeStreamData(
     bool suppress_warnings,
     bool will_retry)
 {
-    std::vector<std::shared_ptr<Pipeline>> to_delete;
+    std::unique_ptr<Pipeline> to_delete;
     if (encp->encrypted) {
         decryptStream(encp, file, qpdf_for_warning, pipeline, og, stream_dict, to_delete);
     }
 
-    bool success = false;
+    bool attempted_finish = false;
     try {
         file->seek(offset, SEEK_SET);
-        char buf[10240];
-        while (length > 0) {
-            size_t to_read = (sizeof(buf) < length ? sizeof(buf) : length);
-            size_t len = file->read(buf, to_read);
-            if (len == 0) {
-                throw damagedPDF(
-                    file, "", file->getLastOffset(), "unexpected EOF reading stream data");
-            }
-            length -= len;
-            pipeline->write(buf, len);
+        auto buf = std::make_unique<char[]>(length);
+        if (auto read = file->read(buf.get(), length); read != length) {
+            throw damagedPDF(file, "", offset + toO(read), "unexpected EOF reading stream data");
         }
+        pipeline->write(buf.get(), length);
+        attempted_finish = true;
         pipeline->finish();
-        success = true;
+        return true;
     } catch (QPDFExc& e) {
         if (!suppress_warnings) {
             qpdf_for_warning.warn(e);
@@ -2456,19 +2524,18 @@ QPDF::pipeStreamData(
                         file,
                         "",
                         file->getLastOffset(),
-                        "stream will be re-processed without"
-                        " filtering to avoid data loss"));
+                        "stream will be re-processed without filtering to avoid data loss"));
             }
         }
     }
-    if (!success) {
+    if (!attempted_finish) {
         try {
             pipeline->finish();
         } catch (std::exception&) {
             // ignore
         }
     }
-    return success;
+    return false;
 }
 
 bool

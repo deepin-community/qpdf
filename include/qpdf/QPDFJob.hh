@@ -1,4 +1,4 @@
-// Copyright (c) 2005-2023 Jay Berkenbilt
+// Copyright (c) 2005-2024 Jay Berkenbilt
 //
 // This file is part of qpdf.
 //
@@ -243,6 +243,8 @@ class QPDFJob
       public:
         QPDF_DLL
         Config* endPages();
+        // From qpdf 11.9.0, you can call file(), range(), and password(). Each call to file()
+        // starts a new page spec.
         QPDF_DLL
         PagesConfig* pageSpec(
             std::string const& filename, std::string const& range, char const* password = nullptr);
@@ -264,14 +266,12 @@ class QPDFJob
       public:
         QPDF_DLL
         Config* endUnderlayOverlay();
-        QPDF_DLL
-        UOConfig* file(std::string const& parameter);
 
 #include <qpdf/auto_job_c_uo.hh>
 
       private:
         UOConfig(Config*);
-        UOConfig(PagesConfig const&) = delete;
+        UOConfig(UOConfig const&) = delete;
 
         Config* config;
     };
@@ -291,7 +291,25 @@ class QPDFJob
 
       private:
         EncConfig(Config*);
-        EncConfig(PagesConfig const&) = delete;
+        EncConfig(EncConfig const&) = delete;
+
+        Config* config;
+    };
+
+    class PageLabelsConfig
+    {
+        friend class QPDFJob;
+        friend class Config;
+
+      public:
+        QPDF_DLL
+        Config* endSetPageLabels();
+
+#include <qpdf/auto_job_c_set_page_labels.hh>
+
+      private:
+        PageLabelsConfig(Config*);
+        PageLabelsConfig(PageLabelsConfig const&) = delete;
 
         Config* config;
     };
@@ -313,6 +331,8 @@ class QPDFJob
         Config* outputFile(std::string const& filename);
         QPDF_DLL
         Config* replaceInput();
+        QPDF_DLL
+        Config* setPageLabels(std::vector<std::string> const& specs);
 
         QPDF_DLL
         std::shared_ptr<CopyAttConfig> copyAttachmentsFrom();
@@ -439,6 +459,22 @@ class QPDFJob
         std::vector<int> repeat_pagenos;
     };
 
+    struct PageLabelSpec
+    {
+        PageLabelSpec(
+            int first_page, qpdf_page_label_e label_type, int start_num, std::string_view prefix) :
+            first_page(first_page),
+            label_type(label_type),
+            start_num(start_num),
+            prefix(prefix)
+        {
+        }
+        int first_page;
+        qpdf_page_label_e label_type;
+        int start_num{1};
+        std::string prefix;
+    };
+
     // Helper functions
     static void usage(std::string const& msg);
     static JSON json_schema(int json_version, std::set<std::string>* keys = nullptr);
@@ -478,14 +514,16 @@ class QPDFJob
     void handlePageSpecs(QPDF& pdf, std::vector<std::unique_ptr<QPDF>>& page_heap);
     bool shouldRemoveUnreferencedResources(QPDF& pdf);
     void handleRotations(QPDF& pdf);
-    void getUOPagenos(UnderOverlay& uo, std::map<int, std::vector<int>>& pagenos);
+    void getUOPagenos(
+        std::vector<UnderOverlay>& uo, std::map<int, std::map<size_t, std::vector<int>>>& pagenos);
     void handleUnderOverlay(QPDF& pdf);
     std::string doUnderOverlayForPage(
         QPDF& pdf,
         UnderOverlay& uo,
-        std::map<int, std::vector<int>>& pagenos,
+        std::map<int, std::map<size_t, std::vector<int>>>& pagenos,
         size_t page_idx,
-        std::map<int, QPDFObjectHandle>& fo,
+        size_t uo_idx,
+        std::map<int, std::map<size_t, QPDFObjectHandle>>& fo,
         std::vector<QPDFPageObjectHelper>& pages,
         QPDFPageObjectHelper& dest_page);
     void validateUnderOverlay(QPDF& pdf, UnderOverlay* uo);
@@ -504,8 +542,8 @@ class QPDFJob
 
     // Output generation
     void doSplitPages(QPDF& pdf);
-    void setWriterOptions(QPDF& pdf, QPDFWriter& w);
-    void setEncryptionOptions(QPDF&, QPDFWriter&);
+    void setWriterOptions(QPDFWriter&);
+    void setEncryptionOptions(QPDFWriter&);
     void maybeFixWritePassword(int R, std::string& password);
     void writeOutfile(QPDF& pdf);
     void writeJSON(QPDF& pdf);
@@ -513,7 +551,6 @@ class QPDFJob
     // JSON
     void doJSON(QPDF& pdf, Pipeline*);
     QPDFObjGen::set getWantedJSONObjects();
-    void doJSONObject(Pipeline* p, bool& first, std::string const& key, QPDFObjectHandle&);
     void doJSONObjects(Pipeline* p, bool& first, QPDF& pdf);
     void doJSONObjectinfo(Pipeline* p, bool& first, QPDF& pdf);
     void doJSONPages(Pipeline* p, bool& first, QPDF& pdf);
@@ -637,7 +674,7 @@ class QPDFJob
         bool show_filtered_stream_data{false};
         bool show_pages{false};
         bool show_page_images{false};
-        size_t collate{0};
+        std::vector<size_t> collate;
         bool flatten_rotation{false};
         bool list_attachments{false};
         std::string attachment_to_show;
@@ -660,8 +697,8 @@ class QPDFJob
         size_t oi_min_height{DEFAULT_OI_MIN_HEIGHT};
         size_t oi_min_area{DEFAULT_OI_MIN_AREA};
         size_t ii_min_bytes{DEFAULT_II_MIN_BYTES};
-        UnderOverlay underlay{"underlay"};
-        UnderOverlay overlay{"overlay"};
+        std::vector<UnderOverlay> underlay;
+        std::vector<UnderOverlay> overlay;
         UnderOverlay* under_overlay{nullptr};
         std::vector<PageSpec> page_specs;
         std::map<std::string, RotationSpec> rotations;
@@ -675,6 +712,7 @@ class QPDFJob
         bool json_output{false};
         std::string update_from_json;
         bool report_mem_usage{false};
+        std::vector<PageLabelSpec> page_label_specs;
     };
     std::shared_ptr<Members> m;
 };

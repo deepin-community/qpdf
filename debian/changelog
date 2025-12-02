@@ -1,8 +1,67 @@
-qpdf (11.6.1-1deepin0) unstable; urgency=medium
+qpdf (11.9.0-1) unstable; urgency=medium
 
-  * No source change upload against GCC 12.
+  * New upstream release.
 
- -- Tianyu Chen <sweetyfish@deepin.org>  Fri, 20 Sep 2024 12:16:31 +0800
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 24 Feb 2024 16:31:27 -0500
+
+qpdf (11.8.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Mon, 08 Jan 2024 12:48:05 -0500
+
+qpdf (11.7.0-4) unstable; urgency=medium
+
+  * Fix debian/rules to correctly support arch=all build
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 30 Dec 2023 10:00:13 -0500
+
+qpdf (11.7.0-3) unstable; urgency=medium
+
+  * No changes -- source-only upload to unblock migration.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Fri, 29 Dec 2023 12:52:45 -0500
+
+qpdf (11.7.0-2) unstable; urgency=medium
+
+  * Fix handling of documentation build to correctly handle
+    architecture-only builds.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 24 Dec 2023 16:09:13 -0500
+
+qpdf (11.7.0-1) unstable; urgency=medium
+
+  * New upstream realease.
+  * Build qpdf-doc package. This is possible now that a sufficient new
+    sphinx_rtd_theme is packaged. (Closes: #1004159)
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 24 Dec 2023 10:05:35 -0500
+
+qpdf (11.6.4-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 10 Dec 2023 12:12:09 -0500
+
+qpdf (11.6.3-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 15 Oct 2023 15:52:09 -0400
+
+qpdf (11.6.2-2) unstable; urgency=medium
+
+  * Tweak cmake syntax: use ON and OFF instead of 1 and 0. This doesn't
+    change any functionality, but it is more standard, and I hope it
+    addresses the FTBFS in reproducible_builds.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sun, 08 Oct 2023 09:04:41 -0400
+
+qpdf (11.6.2-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Jay Berkenbilt <qjb@debian.org>  Sat, 07 Oct 2023 18:33:33 -0400
 
 qpdf (11.6.1-1) unstable; urgency=medium
 

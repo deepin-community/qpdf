@@ -1,3 +1,206 @@
+2024-02-24  Jay Berkenbilt  <ejb@ql.org>
+
+	* 11.9.0: release
+
+2024-02-17  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add ENABLE_COVERAGE cmake option to assist with generating
+	coverage reports.
+
+	* From M. Holger: add QPDFObjectHandle::writeJSON to directly
+	write a JSON representation to a pipeline. This is much faster
+	than writing the serialized result of getJSON.
+
+2024-02-11  Jay Berkenbilt  <ejb@ql.org>
+
+	* The previous fix to #1056 was incomplete. When setting a check
+	box value, the previous fix allowed any value other than /Off to
+	mean checked. Now we also set the actual value based on the
+	allowable non-/Off value in the normal appearance dictionary.
+	Fixes #1056.
+
+2024-02-03  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add fuzz testing for JSON.
+
+2024-01-15  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add JSON::getDictItem (from m-holger)
+
+2024-01-10  Jay Berkenbilt  <ejb@ql.org>
+
+	* Allow --overlay and --underlay to be repeated. They may appear
+	multiple times on the command-line and will be stacked in the
+	order in which they appear. In QPDFJob JSON, the overlay and
+	underlay keys may contain arrays. For compatibility, they may also
+	contain a single dictionary.
+
+2024-01-09  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add new command-line arguments --file and --range which can be
+	used within --pages in place of positional arguments. Allow --file
+	to be used inside of --overlay and --underlay as well. These new
+	options can be freely intermixed with positional arguments. Also
+	add file(), range(), and password() to QPDFJob::PagesConfig as an
+	alternative to pageSpec.
+
+2024-01-08  Jay Berkenbilt  <ejb@ql.org>
+
+	* 11.8.0: release
+
+2024-01-07  Jay Berkenbilt  <ejb@ql.org>
+
+	* Bug fix: treat references to older generations of objects as
+	null.
+
+2024-01-06  Jay Berkenbilt  <ejb@ql.org>
+
+	* When recovering a file's xref table, attempt to find xref
+	streams if a traditional trailer dictionary is not found. Fixes
+	#1103.
+
+2024-01-05  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add --set-page-labels command-line argument and supporting API.
+	Fixes #939.
+	  - QPDFJob::Config::setPageLabels
+	  - pdf_page_label_e enumerated type
+	  - QPDFPageLabelDocumentHelper::pageLabelDict
+
+2024-01-01  Jay Berkenbilt  <ejb@ql.org>
+
+	* Support comma-separated numeric values with --collate to select
+	different group sizes from different files. Fixes #505.
+
+	* Support "x" before a group in a numeric range to exclude a group
+	from the previous group. Details are in the manual. Fixes #564,
+	#790.
+
+2023-12-29  Jay Berkenbilt  <ejb@ql.org>
+
+	* When flattening annotations, preserve annotations without any
+	appearance information at all, such as types /Link, /Popup, and
+	/Projection. Fixes #1039.
+
+2023-12-25  Jay Berkenbilt  <ejb@ql.org>
+
+	* Detect overlong UTF-8 in the UTF-8 decoder, and fix detection of
+	8-bit characters in erroneous UTF-8 strings.
+
+2023-12-24  Jay Berkenbilt  <ejb@ql.org>
+
+	* 11.7.0: release
+
+2023-12-23  Jay Berkenbilt  <ejb@ql.org>
+
+	* Define CPACK_NSIS_MODIFY_PATH for the Windows builds so the
+	official installers will offer to modify PATH when installing
+	qpdf. Fixes #1054.
+
+	* Add QPDFAcroFormDocumentHelper::disableDigitalSignatures, which
+	disables any digital signature fields, leaving their visual
+	representations intact. The --remove-restrictions command-line
+	argument now calls this. Fixes #1015.
+
+2023-12-22  Jay Berkenbilt  <ejb@ql.org>
+
+	* Generate a more complete qpdf "man page" from the same source as
+	qpdf --help. Fixes #1064.
+
+	* Allow the syntax "--encrypt --user-password=user-password
+	--owner-password=owner-password --bits={40,128,256}" when
+	encrypting PDF files. This is an alternative to the syntax
+	"--encrypt user-password owner-password {40,128,256}", which will
+	continue to be supported. The new syntax works better with shell
+	completion and allows creation of passwords that start with "-".
+	Fixes #874.
+
+	* When setting a check box value, allow any value other than /Off
+	to mean checked. This is permitted by the spec. Previously, any
+	value other than /Yes or /Off was rejected. Fixes #1056.
+
+2023-12-21  Jay Berkenbilt  <ejb@ql.org>
+
+	* Fix to QPDF JSON: a floating point number that appears in
+	scientific notation will be converted to fixed-point notation,
+	rounded to six digits after the decimal point. Fixes #1079.
+
+	* Fix to QPDF JSON: the syntax "n:/pdf-syntax" is now accepted as
+	an alternative way to represent names. This can be used for any
+	name (e.g. "n:/text#2fplain"), but it is necessary when the name
+	contains binary characters. For example, /one#a0two must be
+	represented as "n:/one#a0two" since the single byte a0 is not
+	valid in JSON. Fixes #1072.
+
+	* From M. Holger: Refactor QPDFParser for performance. See #1059
+	for a discussion.
+
+2023-12-20  Jay Berkenbilt  <ejb@ql.org>
+
+	* Update code and tests so that qpdf's test suite no longer
+	depends on the output of any specific zlib implementation. This
+	makes it possible to get a fully passing test suite with any
+	API-compatible zlib library. CI tests with the default zlib as
+	well as zlib-ng (including verifying that zlib-ng is not the
+	default), but any zlib implementation should work. Fixes #774.
+
+	* Bug fix: with --compress-streams=n, don't compress object, XRef,
+	or linearization hint streams.
+
+2023-12-16  Jay Berkenbilt  <ejb@ql.org>
+
+	* Add new C++ functions "qpdf_c_get_qpdf" and "qpdf_c_wrap" to
+	qpdf-c.h that make it possible to write your own extern "C"
+	functions in C++ that interoperate with the C API. See
+	examples/extend-c-api for more information.
+
+	* Bug fix from M. Holger: the default for /Columns in PNG filter
+	is 1, but libqpdf was acting like it was 0.
+
+	* Enhancement from M. Holger: add methods to Buffer to work more
+	easily with std::string.
+
+2023-12-10  Jay Berkenbilt  <ejb@ql.org>
+
+	* 11.6.4: release
+
+2023-12-09  Jay Berkenbilt  <ejb@ql.org>
+
+	* Install fix: include cmake files with the dev component.
+
+2023-11-20  Jay Berkenbilt  <ejb@ql.org>
+
+	* Build AppImage with an older Linux distribution to support AWS
+	Lambda. Fixes #1086.
+
+2023-10-15  Jay Berkenbilt  <ejb@ql.org>
+
+        * 11.6.3: release
+
+2023-10-14  Jay Berkenbilt  <ejb@ql.org>
+
+        * Tweak linearization code to better handle files between 2 GB and
+        4 GB in size. Fixes #1023.
+
+        * Fix data loss bug: qpdf could discard a the character after an
+        escaped octal string consisting of less than three digits. For
+        content, this would only happen with QDF or when normalizing
+        content. Outside of content, it could have happened in any binary
+        string, such as /ID, if the encoding software used octal escape
+        strings with less than three digits. This bug was introduced
+        between 10.6.3 and 11.0.0. Fixes #1050.
+
+2023-10-07  Jay Berkenbilt  <ejb@ql.org>
+
+        * 11.6.2: release
+
+        * Bug fix: when piping stream data, don't call finish on failure
+        if the failure was caused by a previous call to finish. Fixes
+        #1042.
+
+        * Push .idea directory with the beginning of a sharable JetBrains
+        CLion configuration.
+
 2023-09-05  Jay Berkenbilt  <ejb@ql.org>
 
         * 11.6.1: release

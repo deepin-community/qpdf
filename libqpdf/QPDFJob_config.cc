@@ -1,5 +1,7 @@
 #include <qpdf/QPDFJob.hh>
 
+#include <regex>
+
 #include <qpdf/QPDFLogger.hh>
 #include <qpdf/QTC.hh>
 #include <qpdf/QUtil.hh>
@@ -98,8 +100,27 @@ QPDFJob::Config::collate()
 QPDFJob::Config*
 QPDFJob::Config::collate(std::string const& parameter)
 {
-    auto n = (parameter.empty() ? 1 : QUtil::string_to_uint(parameter.c_str()));
-    o.m->collate = QIntC::to_size(n);
+    if (parameter.empty()) {
+        o.m->collate.push_back(1);
+        return this;
+    }
+    size_t pos = 0;
+    // Parse a,b,c
+    while (true) {
+        auto end = parameter.find(',', pos);
+        auto n = parameter.substr(pos, end);
+        if (n.empty()) {
+            usage("--collate: trailing comma");
+        }
+        o.m->collate.push_back(QIntC::to_size(QUtil::string_to_uint(n.c_str())));
+        if (end == std::string::npos) {
+            break;
+        }
+        pos = end + 1;
+    }
+    if (o.m->collate.empty()) {
+        o.m->collate.push_back(1);
+    }
     return this;
 }
 
@@ -932,7 +953,8 @@ QPDFJob::Config::pages()
 QPDFJob::Config*
 QPDFJob::PagesConfig::endPages()
 {
-    if (this->config->o.m->page_specs.empty()) {
+    auto n_specs = config->o.m->page_specs.size();
+    if (n_specs == 0) {
         usage("--pages: no page specifications given");
     }
     return this->config;
@@ -946,17 +968,58 @@ QPDFJob::PagesConfig::pageSpec(
     return this;
 }
 
+QPDFJob::PagesConfig*
+QPDFJob::PagesConfig::file(std::string const& arg)
+{
+    this->config->o.m->page_specs.emplace_back(arg, nullptr, "");
+    return this;
+}
+
+QPDFJob::PagesConfig*
+QPDFJob::PagesConfig::range(std::string const& arg)
+{
+    if (config->o.m->page_specs.empty()) {
+        QTC::TC("qpdf", "QPDFJob misplaced page range");
+        usage("in --range must follow a file name");
+    }
+    auto& last = config->o.m->page_specs.back();
+    if (!last.range.empty()) {
+        QTC::TC("qpdf", "QPDFJob duplicated range");
+        usage("--range already specified for this file");
+    }
+    last.range = arg;
+    return this;
+}
+
+QPDFJob::PagesConfig*
+QPDFJob::PagesConfig::password(std::string const& arg)
+{
+    if (config->o.m->page_specs.empty()) {
+        QTC::TC("qpdf", "QPDFJob misplaced pages password");
+        usage("in --pages, --password must follow a file name");
+    }
+    auto& last = config->o.m->page_specs.back();
+    if (last.password) {
+        QTC::TC("qpdf", "QPDFJob duplicated pages password");
+        usage("--password already specified for this file");
+    }
+    last.password = QUtil::make_shared_cstr(arg);
+    return this;
+}
+
 std::shared_ptr<QPDFJob::UOConfig>
 QPDFJob::Config::overlay()
 {
-    o.m->under_overlay = &o.m->overlay;
+    o.m->overlay.emplace_back("overlay");
+    o.m->under_overlay = &o.m->overlay.back();
     return std::shared_ptr<UOConfig>(new UOConfig(this));
 }
 
 std::shared_ptr<QPDFJob::UOConfig>
 QPDFJob::Config::underlay()
 {
-    o.m->under_overlay = &o.m->underlay;
+    o.m->underlay.emplace_back("underlay");
+    o.m->under_overlay = &o.m->underlay.back();
     return std::shared_ptr<UOConfig>(new UOConfig(this));
 }
 
@@ -1034,6 +1097,59 @@ QPDFJob::Config::encrypt(
     return std::shared_ptr<EncConfig>(new EncConfig(this));
 }
 
+QPDFJob::Config*
+QPDFJob::Config::setPageLabels(const std::vector<std::string>& specs)
+{
+    static std::regex page_label_re(R"(^(z|r?\d+):([DaArR])?(?:/(\d+)?(?:/(.+)?)?)?$)");
+    o.m->page_label_specs.clear();
+    for (auto const& spec: specs) {
+        std::smatch match;
+        if (!std::regex_match(spec, match, page_label_re)) {
+            usage("page label spec must be n:[D|a|A|r|R][/start[/prefix]]");
+        }
+        auto first_page_str = match[1].str();
+        int first_page;
+        if (first_page_str == "z") {
+            first_page = -1;
+        } else if (first_page_str.at(0) == 'r') {
+            first_page = -QUtil::string_to_int(first_page_str.substr(1).c_str());
+        } else {
+            first_page = QUtil::string_to_int(first_page_str.c_str());
+        }
+        auto label_type_ch = match[2].matched ? match[2].str().at(0) : '\0';
+        qpdf_page_label_e label_type;
+        switch (label_type_ch) {
+        case 'D':
+            label_type = pl_digits;
+            break;
+        case 'a':
+            label_type = pl_alpha_lower;
+            break;
+        case 'A':
+            label_type = pl_alpha_upper;
+            break;
+        case 'r':
+            label_type = pl_roman_lower;
+            break;
+        case 'R':
+            label_type = pl_roman_upper;
+            break;
+        default:
+            label_type = pl_none;
+        }
+
+        auto start_num = match[3].matched ? QUtil::string_to_int(match[3].str().c_str()) : 1;
+        if (start_num < 1) {
+            usage("starting page number must be >= 1");
+        }
+        auto prefix = match[4].matched ? match[4].str() : "";
+        // We can't check ordering until we know how many pages there are, so that is delayed until
+        // near the end.
+        o.m->page_label_specs.emplace_back(first_page, label_type, start_num, prefix);
+    }
+    return this;
+}
+
 QPDFJob::EncConfig::EncConfig(Config* c) :
     config(c)
 {
@@ -1042,6 +1158,9 @@ QPDFJob::EncConfig::EncConfig(Config* c) :
 QPDFJob::Config*
 QPDFJob::EncConfig::endEncrypt()
 {
+    if (config->o.m->keylen == 0) {
+        usage("encryption key length is required");
+    }
     config->o.m->encrypt = true;
     config->o.m->decrypt = false;
     config->o.m->copy_encryption = false;
@@ -1184,4 +1303,15 @@ QPDFJob::EncConfig::forceR5()
 {
     config->o.m->force_R5 = true;
     return this;
+}
+
+QPDFJob::PageLabelsConfig::PageLabelsConfig(Config* c) :
+    config(c)
+{
+}
+
+QPDFJob::Config*
+QPDFJob::PageLabelsConfig::endSetPageLabels()
+{
+    return this->config;
 }

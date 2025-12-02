@@ -1,4 +1,4 @@
-// Copyright (c) 2005-2023 Jay Berkenbilt
+// Copyright (c) 2005-2024 Jay Berkenbilt
 //
 // This file is part of qpdf.
 //
@@ -277,6 +277,7 @@ namespace QIntC // QIntC = qpdf Integer Conversion
         QIntC::range_check_error<T>(cur, delta);
     }
 
+    // ABI: fix spelling error in function name. Also remove "substract" from spelling dictionary.
     template <typename T>
     void
     range_check_substract_error(T const& cur, T const& delta)
@@ -295,6 +296,7 @@ namespace QIntC // QIntC = qpdf Integer Conversion
         }
     }
 
+    // ABI: fix typo in function name
     template <typename T>
     inline void
     range_check_substract(T const& cur, T const& delta)
